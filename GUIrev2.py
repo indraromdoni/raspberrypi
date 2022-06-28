@@ -15,7 +15,7 @@ from tkinter import ttk
 
 root = Tk()
 root.title('Lever Child Detection')
-#root.iconbitmap('c:/gui/codemy.ico')
+#root.iconbitmap('/home/pi/lever_child_project/')
 root.geometry("400x550+100+50")
 masterlist = ["master00", "master01", "master02", "master03"]
 masterselect = StringVar(root)
@@ -32,8 +32,14 @@ parentfld = '/home/pi/lever_child_project/'
 def takeimage(j):
     flag_ok = False
     cap = cv.VideoCapture(cam)
+    f = open(parentfld+'default.json', 'r')
+    data = json.load(f)
+    f.close()
+    _x, _y, _w, _h = data['roi']
     while True:
         success, frame = cap.read()
+        if j[-1] != "0":
+            cv.rectangle(frame, (_x, _y), (_x+_w, _y+_h), (0,255,0), 2)
         cv.imshow("Sample OK Image", frame)
         key = cv.waitKey(1)
         if key == ord('s'):
@@ -44,8 +50,17 @@ def takeimage(j):
             break
     if flag_ok == True:
         img = cv.imread(parentfld + j + "/master-image.jpg")
-        roi = cv.selectROI(img)
-        roi_cropped = img[int(roi[1]):int(roi[1]+roi[3]), int(roi[0]):int(roi[0]+roi[2])]
+        roi_cropped = 0
+        if j[-1] == "0":
+            f = open("default.json", "w")
+            roi = cv.selectROI(img)
+            data['roi'] = roi
+            json.dump(data, f)
+            f.close()
+            print(data['roi'])
+            roi_cropped = img[int(roi[1]):int(roi[1]+roi[3]), int(roi[0]):int(roi[0]+roi[2])]
+        else:
+            roi_cropped = img[_y:_y+_h, _x:_x+_w]
         gray_cropped = cv.cvtColor(roi_cropped, cv.COLOR_BGR2GRAY)
         cv.imwrite(parentfld + j + "/master-template.jpg", gray_cropped)
         cv.destroyAllWindows()
@@ -130,7 +145,7 @@ def predict():
     cap = cv.VideoCapture(cam)
     success, frame = cap.read()
     img_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-    template = cv.imread(parentfld+"master01/master-template.jpg", 0)
+    template = cv.imread(parentfld+"master00/master-template.jpg", 0)
     w,h = template.shape[::-1]
     res = cv.matchTemplate(img_gray, template, cv.TM_CCOEFF_NORMED)
     print(res)
@@ -152,6 +167,7 @@ def predict():
         baca = baca.replace('\n','')
         baca = baca.replace('\r','')
         int_baca = int(baca)
+        cv.putText(frame, modelselect[int_baca], org=(5, 20), fontFace=cv.FONT_HERSHEY_TRIPLEX, fontScale=0.5, color=(0, 191, 255), thickness=1)
         print(int_baca)
         if preds[0] == int_baca:
             print("Good Product")
@@ -193,7 +209,7 @@ def predict():
             except:
                 print("Window closed")
                 break
-            key = cv.waitKey(200)
+            key = cv.waitKey(50)
             if key == 27:
                 break
         cap.release()
@@ -212,7 +228,7 @@ def predictloop():
         if not success:
             print('Cannot take picture')
         img_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        template = cv.imread(parentfld+"master01/master-template.jpg", 0)
+        template = cv.imread(parentfld+"master00/master-template.jpg", 0)
         w,h = template.shape[::-1]
         res = cv.matchTemplate(img_gray, template, cv.TM_CCOEFF_NORMED)
         #print(res)
@@ -241,12 +257,20 @@ def predictloop():
     cv.destroyAllWindows()
         
 def setdefault():
+    img = cv.imread(parentfld+'logomkai.png')
+    cv.namedWindow('Result')
+    cv.moveWindow('Result', 550, 50)
+    cv.imshow('Result', img)
     ip = check_output(['hostname', '-I'])
     myip.set(ip)
     f = open(parentfld+'default.json', 'r')
     data = json.load(f)
     print(data)
     f.close()
+    print("ROI x : "+str(data['roi'][0]))
+    print("ROI y : "+str(data['roi'][1]))
+    print("ROI w : "+str(data['roi'][2]))
+    print("ROI h : "+str(data['roi'][3]))
     triggerInput.set(data['triggerInput'])
     dataInput.set(data['dataInput'])
     judgeOutput.set(data['judgeOutput'])
