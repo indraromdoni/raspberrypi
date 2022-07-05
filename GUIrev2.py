@@ -1,3 +1,5 @@
+import csv
+from datetime import datetime
 from subprocess import check_output
 import time
 import socket
@@ -16,7 +18,7 @@ from tkinter import ttk
 root = Tk()
 root.title('Lever Child Detection')
 #root.iconbitmap('/home/pi/lever_child_project/')
-root.geometry("400x550+100+50")
+root.geometry("400x600+100+50")
 masterlist = ["master00", "master01", "master02", "master03"]
 masterselect = StringVar(root)
 masterselect.set("Select option")
@@ -138,6 +140,8 @@ except:
 def predict():
     predict = "Prediction start"
     print(predict)
+    cv.namedWindow('Result')
+    cv.moveWindow('Result', 550, 50)
     clf = GradientBoostingClassifier()
     with open(parentfld+"model.pickle", mode='rb') as f:
         clf = pickle.load(f)
@@ -160,6 +164,7 @@ def predict():
     preds = clf.predict(X)
     modelselect = ["Lever Child White", "Lever Child Black", "No Lever Child", "No Lever Child 1"]
     dataread = "RD "+dataInput.get()+"\r"
+    ng = 0
     try:
         clientSocket.send(dataread.encode())
         msg = clientSocket.recv(1024)
@@ -171,6 +176,7 @@ def predict():
         print(int_baca)
         if preds[0] == int_baca:
             print("Good Product")
+            cv.imwrite(parentfld+'result/'+str(datetime.now())+'.jpg', frame)
             data = "WR "+judgeOutput.get()+" 1\r"
             print(data)
             clientSocket.send(data.encode())
@@ -185,13 +191,22 @@ def predict():
             psn1 = psn1.decode()
             print(psn1)
         else:
+            cv.imwrite(parentfld+'resultng/'+str(datetime.now())+'.jpg', frame)
             print("NG Product, the product is "+modelselect[preds[0]])
+            ng = 1
     except:
         print('Communication error')
     print("Prediction : ", preds)
+    ng_str = ['OK', 'NG']
+    logging_result = [datetime.now(), modelselect[int_baca], modelselect[preds[0]], ng_str[ng]]
+    with open(parentfld+'logging_result.csv', 'a') as f:
+        writer = csv.writer(f)
+        writer.writerow(logging_result)
+    ng = 0
     cv.rectangle(frame, top_left, bottom_right, (0,255,0), thickness=2)
     cv.putText(frame, modelselect[preds[0]], org=top_left, fontFace=cv.FONT_HERSHEY_TRIPLEX, fontScale=0.5, color=(0, 255, 0), thickness=1)
     if mode.get() == 0:
+        cv.imwrite(parentfld+'result/logging_result.jpg', frame)
         cv.imshow("Result", frame)
         cv.waitKey(200)
         cap.release()
@@ -223,6 +238,8 @@ def predictloop():
         clf = pickle.load(f)
     X = []
     cap = cv.VideoCapture(cam)
+    cv.namedWindow('Result')
+    cv.moveWindow('Result', 550, 50)
     while True:
         success, frame = cap.read()
         if not success:
@@ -257,10 +274,6 @@ def predictloop():
     cv.destroyAllWindows()
         
 def setdefault():
-    img = cv.imread(parentfld+'logomkai.png')
-    cv.namedWindow('Result')
-    cv.moveWindow('Result', 550, 50)
-    cv.imshow('Result', img)
     ip = check_output(['hostname', '-I'])
     myip.set(ip)
     f = open(parentfld+'default.json', 'r')
@@ -332,9 +345,9 @@ def runmode():
             print(rep[0])
             if rep[0] == '1':
                 print("Prediction Start")
-                root.after(100, predict)
+                root.after(50, predict)
             else:
-                root.after(1000, runmode)
+                root.after(50, runmode)
         except:
             print('Communication error')
             print('Reconnecting to ' + ipaddress.get())
